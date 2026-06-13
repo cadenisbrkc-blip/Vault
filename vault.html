@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+<meta name="apple-mobile-web-app-title" content="Vault"/>
+<meta name="theme-color" content="#000000"/>
+<title>Vault</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" crossorigin="anonymous"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Azeret+Mono:wght@300;400;500;600&family=Fraunces:opsz,wght@9..144,400;9..144,500&display=swap');
+
+*{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#000000;
+  --surf:#0a0b0d;
+  --surf2:#101216;
+  --raise:#16191f;
+  --bdr:#1c2027;
+  --bdr2:#2a3038;
+  --text:#e6e9ee;
+  --muted:#7d8694;
+  --dim:#454d59;
+  --faint:#262c34;
+  /* P&L scale */
+  --g:#3fb950;
+  --g-dim:#1e6128;
+  --r:#f0573d;
+  --r-dim:#7a2418;
+  --accent:#4da3ff;
+  --st:env(safe-area-inset-top,0px);
+  --sb:env(safe-area-inset-bottom,0px);
+}
+
+html,body{
+  background:var(--bg);color:var(--text);
+  font-family:'Azeret Mono','SF Mono',ui-monospace,monospace;
+  min-height:100dvh;color-scheme:dark;
+  -webkit-tap-highlight-color:transparent;
+  overscroll-behavior-y:none;
+  font-feature-settings:"tnum" 1;
+}
+body{font-size:14px}
+
+#app{max-width:520px;margin:0 auto;padding:calc(16px + var(--st)) 14px calc(86px + var(--sb))}
+
+/* ── Header ── */
+.hdr{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:20px}
+.hdr-title{font-family:'Fraunces',Georgia,serif;font-size:30px;font-weight:500;letter-spacing:-0.5px;line-height:1}
+.hdr-sub{font-size:9px;color:var(--dim);letter-spacing:2.5px;margin-top:7px;text-transform:uppercase}
+.hdr-live{font-size:9px;color:var(--muted);letter-spacing:1.5px;display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--g);box-shadow:0 0 8px var(--g)}
+
+/* ── Generic ── */
+.sec{font-size:9px;color:var(--dim);letter-spacing:2.5px;text-transform:uppercase;padding:22px 2px 9px;font-weight:500}
+.sec:first-child{padding-top:4px}
+.hidden{display:none}
+
+.card{background:var(--surf);border:1px solid var(--bdr);border-radius:10px;padding:15px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:9px}
+.row.three{grid-template-columns:1fr 1fr 1fr}
+
+/* ── KPI ── */
+.kl{font-size:8.5px;color:var(--dim);letter-spacing:1.8px;text-transform:uppercase;margin-bottom:9px}
+.kv{font-size:23px;font-weight:500;letter-spacing:-0.6px;line-height:1;font-variant-numeric:tabular-nums}
+.kv.sm{font-size:17px}
+.kv.g{color:var(--g)}.kv.r{color:var(--r)}.kv.a{color:var(--accent)}
+.ks{font-size:9.5px;color:var(--muted);margin-top:6px;letter-spacing:0.3px}
+
+/* ── Hero P&L (dashboard top) ── */
+.hero{background:linear-gradient(160deg,var(--surf2),var(--surf));border:1px solid var(--bdr);border-radius:14px;padding:20px;margin-bottom:9px;position:relative;overflow:hidden}
+.hero-glow{position:absolute;top:-40%;right:-20%;width:240px;height:240px;border-radius:50%;filter:blur(70px);opacity:0.16;pointer-events:none}
+.hero-l{font-size:9px;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px}
+.hero-v{font-size:42px;font-weight:500;letter-spacing:-1.5px;line-height:1;font-variant-numeric:tabular-nums;position:relative}
+.hero-meta{display:flex;gap:18px;margin-top:14px;position:relative}
+.hero-meta div{font-size:10px;color:var(--muted);letter-spacing:0.5px}
+.hero-meta b{display:block;font-size:14px;font-weight:500;margin-top:3px;letter-spacing:-0.3px}
+
+/* ── Chart ── */
+.chart-wrap{position:relative;height:170px;margin-top:2px}
+canvas{background:transparent!important}
+
+/* ── Calendar ── */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.cal-month{font-family:'Fraunces',serif;font-size:20px;font-weight:500;letter-spacing:-0.3px}
+.cal-month span{color:var(--dim);font-family:'Azeret Mono',monospace;font-size:13px;margin-left:7px;letter-spacing:0}
+.cal-arrows{display:flex;gap:7px}
+.cal-btn{width:38px;height:38px;border:1px solid var(--bdr2);background:var(--surf);border-radius:9px;color:var(--text);font-size:17px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:border-color .15s,background .15s;-webkit-appearance:none}
+.cal-btn:active{background:var(--raise)}
+.cal-today{font-size:9px;letter-spacing:1.5px;padding:0 13px;height:38px;border:1px solid var(--bdr2);background:var(--surf);border-radius:9px;color:var(--muted);cursor:pointer;text-transform:uppercase;-webkit-appearance:none}
+
+.cal-msum{display:flex;gap:9px;margin-bottom:13px}
+.cal-msum .card{flex:1;padding:13px}
+
+.dow{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:6px}
+.dow span{text-align:center;font-size:8.5px;color:var(--dim);letter-spacing:1.5px;padding:2px 0}
+
+.cal-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.cell{aspect-ratio:1;border:1px solid var(--bdr);border-radius:9px;background:var(--surf);padding:7px;display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;transition:transform .1s,border-color .15s;position:relative;overflow:hidden}
+.cell:active{transform:scale(0.96)}
+.cell.empty{background:transparent;border:none;cursor:default;pointer-events:none}
+.cell.future{opacity:0.32;cursor:default;pointer-events:none}
+.cell.today{border-color:var(--accent)}
+.cell.today .cell-day{color:var(--accent)}
+.cell-day{font-size:11px;color:var(--muted);font-weight:500;text-align:right;line-height:1;z-index:2}
+.cell-pnl{font-size:12.5px;font-weight:600;letter-spacing:-0.4px;line-height:1.1;z-index:2;font-variant-numeric:tabular-nums}
+.cell-pnl.empty-day{color:var(--faint);font-size:15px;font-weight:400}
+.cell.win{border-color:var(--g-dim)}
+.cell.loss{border-color:var(--r-dim)}
+.cell.win .cell-pnl{color:var(--g)}
+.cell.loss .cell-pnl{color:var(--r)}
+.cell-fill{position:absolute;inset:0;z-index:1;opacity:0.5}
+
+/* ── Day editor sheet ── */
+#sheet{position:fixed;inset:0;z-index:300;display:none;align-items:flex-end;justify-content:center}
+#sheet.open{display:flex}
+.sheet-scrim{position:absolute;inset:0;background:#000000cc;backdrop-filter:blur(2px)}
+.sheet-box{position:relative;width:100%;max-width:520px;background:var(--surf2);border:1px solid var(--bdr2);border-bottom:none;border-radius:18px 18px 0 0;padding:22px 18px calc(22px + var(--sb));animation:slideup .22s cubic-bezier(.2,.9,.3,1)}
+@keyframes slideup{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sheet-grip{width:36px;height:4px;background:var(--bdr2);border-radius:2px;margin:0 auto 18px}
+.sheet-date{font-family:'Fraunces',serif;font-size:21px;font-weight:500;letter-spacing:-0.3px;margin-bottom:3px}
+.sheet-sub{font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:20px}
+.pnl-input-wrap{position:relative;margin-bottom:16px}
+.pnl-sign{display:flex;gap:7px;margin-bottom:14px}
+.sign-btn{flex:1;padding:13px;border:1px solid var(--bdr2);background:var(--surf);border-radius:10px;font-family:'Azeret Mono',monospace;font-size:13px;font-weight:500;letter-spacing:0.5px;color:var(--muted);cursor:pointer;transition:all .15s;-webkit-appearance:none}
+.sign-btn.win.active{border-color:var(--g);color:var(--g);background:#0d1f12}
+.sign-btn.loss.active{border-color:var(--r);color:var(--r);background:#1f0f0c}
+.sign-btn.flat.active{border-color:var(--muted);color:var(--text);background:var(--raise)}
+.big-input{width:100%;background:var(--surf);border:1px solid var(--bdr2);border-radius:12px;color:var(--text);padding:18px 18px 18px 42px;font-family:'Azeret Mono',monospace;font-size:30px;font-weight:500;outline:none;-webkit-appearance:none;letter-spacing:-1px;text-align:left;transition:border-color .15s}
+.big-input:focus{border-color:var(--accent)}
+.big-input::placeholder{color:var(--faint)}
+.input-dollar{position:absolute;left:18px;top:50%;transform:translateY(-50%);font-size:24px;color:var(--dim);pointer-events:none;font-weight:500}
+.sheet-actions{display:flex;gap:9px;margin-top:6px}
+.sheet-err{color:var(--r);font-size:10px;min-height:14px;letter-spacing:0.3px;margin:4px 2px 8px}
+
+/* ── Buttons ── */
+.btn{flex:1;background:var(--surf);border:1px solid var(--bdr2);border-radius:11px;color:var(--text);padding:14px;font-family:'Azeret Mono',monospace;font-size:11px;font-weight:500;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:border-color .15s,background .15s;-webkit-appearance:none}
+.btn:active{background:var(--raise)}
+.btn.acc{border-color:var(--accent);color:var(--accent);background:#0a1622}
+.btn.dng{border-color:var(--r-dim);color:var(--r)}
+.btn.ghost{color:var(--muted)}
+
+/* ── Period pills ── */
+.pills{display:flex;gap:7px;margin-bottom:18px}
+.pill{flex:1;padding:11px 0;border-radius:9px;font-size:10px;font-family:'Azeret Mono',monospace;font-weight:500;cursor:pointer;letter-spacing:1px;text-transform:uppercase;border:1px solid var(--bdr);background:var(--surf);color:var(--muted);transition:all .15s;-webkit-appearance:none}
+.pill.active{background:var(--raise);border-color:var(--accent);color:var(--accent)}
+
+/* ── Period breakdown cards ── */
+.pcard{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:17px;margin-bottom:10px}
+.ptop{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:15px}
+.pdate{font-family:'Fraunces',serif;font-size:17px;font-weight:500;letter-spacing:-0.2px}
+.psub{font-size:9.5px;color:var(--dim);margin-top:4px;letter-spacing:0.5px}
+.ppnl{font-size:21px;letter-spacing:-0.6px;text-align:right;font-weight:500;font-variant-numeric:tabular-nums}
+.proi{font-size:11px;margin-top:3px;text-align:right;font-variant-numeric:tabular-nums}
+.sgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:14px}
+.sitem{background:var(--raise);border-radius:8px;padding:11px}
+.slbl{font-size:8px;color:var(--dim);letter-spacing:1.2px;text-transform:uppercase;margin-bottom:6px}
+.sval{font-size:13px;font-weight:500;font-variant-numeric:tabular-nums}
+.mini-wrap{position:relative;height:64px;margin-top:2px}
+.empty-state{color:var(--dim);font-size:12px;text-align:center;padding:48px 20px;line-height:1.7;letter-spacing:0.3px}
+
+/* ── Settings ── */
+.set-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid var(--bdr)}
+.set-row:last-child{border-bottom:none}
+.set-l{font-size:12px;color:var(--text)}
+.set-d{font-size:9.5px;color:var(--dim);margin-top:3px;letter-spacing:0.3px}
+.set-input{width:120px;background:var(--surf);border:1px solid var(--bdr2);border-radius:8px;color:var(--text);padding:10px;font-family:'Azeret Mono',monospace;font-size:14px;font-weight:500;outline:none;-webkit-appearance:none;text-align:right;transition:border-color .15s}
+.set-input:focus{border-color:var(--accent)}
+
+/* ── Tables (goals + analytics) ── */
+.twrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:11.5px}
+thead tr{border-bottom:1px solid var(--bdr)}
+th{padding:9px 12px;text-align:left;color:var(--dim);font-size:8px;letter-spacing:1.5px;font-weight:500;white-space:nowrap;text-transform:uppercase}
+td{padding:12px;white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
+td.bold{color:var(--text);font-weight:500}
+tbody tr{border-bottom:1px solid var(--bdr)}
+tbody tr:last-child{border-bottom:none}
+.tag{display:inline-block;font-size:7.5px;letter-spacing:0.5px;padding:2px 6px;border-radius:3px;margin-left:6px;vertical-align:middle;text-transform:uppercase}
+
+/* ── Modal (import) ── */
+#imodal{display:none;position:fixed;inset:0;background:#000000cc;backdrop-filter:blur(3px);z-index:400;align-items:center;justify-content:center;padding:22px}
+#imodal.open{display:flex}
+.mbox{background:var(--surf2);border:1px solid var(--bdr2);border-radius:14px;padding:22px;width:100%;max-width:440px}
+.mtitle{font-family:'Fraunces',serif;font-size:18px;font-weight:500;margin-bottom:6px}
+.msub{font-size:11px;color:var(--muted);margin-bottom:15px;line-height:1.6;letter-spacing:0.2px}
+textarea{width:100%;background:var(--surf);border:1px solid var(--bdr2);border-radius:9px;color:var(--text);padding:12px;font-family:'Azeret Mono',monospace;font-size:12px;outline:none;resize:none;height:120px;-webkit-appearance:none}
+textarea:focus{border-color:var(--accent)}
+
+/* ── Tab bar ── */
+#tabbar{position:fixed;bottom:0;left:0;right:0;background:#000000ee;backdrop-filter:blur(14px);border-top:1px solid var(--bdr);display:flex;padding-bottom:var(--sb);z-index:100}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:11px 0 9px;gap:5px;border:none;background:none;color:var(--dim);font-family:'Azeret Mono',monospace;font-size:7.5px;letter-spacing:1.2px;cursor:pointer;transition:color .2s;text-transform:uppercase;-webkit-appearance:none}
+.tab.active{color:var(--text)}
+.tab svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+
+/* ── Toast ── */
+#toast{position:fixed;bottom:calc(82px + var(--sb));left:50%;transform:translateX(-50%) translateY(10px);background:var(--raise);border:1px solid var(--bdr2);border-radius:9px;padding:11px 18px;font-size:11px;color:var(--text);letter-spacing:0.3px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:999;white-space:nowrap;box-shadow:0 8px 28px #000000aa}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+.footer{text-align:center;color:var(--dim);font-size:8.5px;margin-top:26px;letter-spacing:1.5px;text-transform:uppercase}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ════ DASHBOARD ════ -->
+  <div id="tab-dashboard">
+    <div class="hdr">
+      <div>
+        <div class="hdr-title">Vault</div>
+        <div class="hdr-sub">ES · NQ Futures</div>
+      </div>
+      <div class="hdr-live"><span class="dot"></span>Tracking</div>
+    </div>
+
+    <div class="hero">
+      <div class="hero-glow" id="hero-glow"></div>
+      <div class="hero-l">Net P&amp;L · All Time</div>
+      <div class="hero-v" id="h-pnl">—</div>
+      <div class="hero-meta">
+        <div>ROI<b id="h-roi">—</b></div>
+        <div>Balance<b id="h-bal">—</b></div>
+        <div>Win days<b id="h-wr">—</b></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card"><div class="kl">Avg / Day</div><div class="kv sm" id="k-avg">—</div></div>
+      <div class="card"><div class="kl">Days Traded</div><div class="kv sm" id="k-days">—</div></div>
+    </div>
+    <div class="row">
+      <div class="card"><div class="kl">Max Drawdown</div><div class="kv sm" id="k-dd">—</div><div class="ks" id="k-dd-d"></div></div>
+      <div class="card"><div class="kl">Profit Factor</div><div class="kv sm" id="k-pf">—</div><div class="ks">gross win ÷ loss</div></div>
+    </div>
+    <div class="row">
+      <div class="card"><div class="kl">Best Day</div><div class="kv sm g" id="k-best">—</div><div class="ks" id="k-best-d"></div></div>
+      <div class="card"><div class="kl">Worst Day</div><div class="kv sm r" id="k-worst">—</div><div class="ks" id="k-worst-d"></div></div>
+    </div>
+    <div class="row">
+      <div class="card"><div class="kl">Current Streak</div><div class="kv sm" id="k-streak">—</div></div>
+      <div class="card"><div class="kl">Withdrawn</div><div class="kv sm a" id="k-wd">—</div></div>
+    </div>
+
+    <div class="sec">Equity Curve</div>
+    <div class="card"><div class="chart-wrap"><canvas id="chart-main"></canvas></div></div>
+    <div class="footer" id="dash-foot">Starting capital $5,000</div>
+  </div>
+
+  <!-- ════ LOG (calendar) ════ -->
+  <div id="tab-log" class="hidden">
+    <div class="cal-nav">
+      <div class="cal-month" id="cal-title">—</div>
+      <div class="cal-arrows">
+        <button class="cal-today" onclick="calToday()">Today</button>
+        <button class="cal-btn" onclick="calStep(-1)">‹</button>
+        <button class="cal-btn" onclick="calStep(1)">›</button>
+      </div>
+    </div>
+
+    <div class="cal-msum">
+      <div class="card"><div class="kl">Month P&amp;L</div><div class="kv sm" id="cal-pnl">—</div></div>
+      <div class="card"><div class="kl">Days</div><div class="kv sm" id="cal-days">—</div></div>
+      <div class="card"><div class="kl">Win Days</div><div class="kv sm" id="cal-wr">—</div></div>
+    </div>
+
+    <div class="dow"><span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span></div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div class="footer">Tap a weekday to log or edit · Weekends hidden</div>
+  </div>
+
+  <!-- ════ ANALYTICS ════ -->
+  <div id="tab-analytics" class="hidden">
+    <div class="hdr">
+      <div>
+        <div class="hdr-title">Analytics</div>
+        <div class="hdr-sub">Performance Breakdown</div>
+      </div>
+    </div>
+    <div class="pills">
+      <button class="pill active" onclick="setPeriod('month')" id="pl-month">Monthly</button>
+      <button class="pill" onclick="setPeriod('quarter')" id="pl-quarter">Quarterly</button>
+      <button class="pill" onclick="setPeriod('year')" id="pl-year">Yearly</button>
+    </div>
+    <div id="analytics-content"></div>
+  </div>
+
+  <!-- ════ SETTINGS ════ -->
+  <div id="tab-settings" class="hidden">
+    <div class="hdr">
+      <div>
+        <div class="hdr-title">Settings</div>
+        <div class="hdr-sub">Account &amp; Data</div>
+      </div>
+    </div>
+
+    <div class="sec">Capital</div>
+    <div class="card">
+      <div class="set-row">
+        <div>
+          <div class="set-l">Starting capital</div>
+          <div class="set-d">Set once. Drives ROI &amp; drawdown.</div>
+        </div>
+        <input type="number" class="set-input" id="set-base" inputmode="decimal" onchange="setBase()"/>
+      </div>
+    </div>
+
+    <div class="sec">Backup</div>
+    <div class="card">
+      <div style="font-size:11px;color:var(--muted);line-height:1.7;margin-bottom:14px;letter-spacing:0.2px">Export saves every logged day to a file. Import restores it on a new device or after clearing data.</div>
+      <div style="display:flex;gap:9px">
+        <button class="btn" onclick="exportData()">Export</button>
+        <button class="btn" onclick="openImport()">Import</button>
+      </div>
+      <div style="font-size:9px;color:var(--dim);margin-top:11px;text-align:center;letter-spacing:0.5px" id="backup-info"></div>
+    </div>
+
+    <div class="sec">Danger Zone</div>
+    <div class="card">
+      <button class="btn dng" style="width:100%" onclick="wipeData()">Erase all data</button>
+    </div>
+    <div class="footer">Data saved locally on this device</div>
+  </div>
+
+</div>
+
+<!-- ════ Day editor sheet ════ -->
+<div id="sheet">
+  <div class="sheet-scrim" onclick="closeSheet()"></div>
+  <div class="sheet-box">
+    <div class="sheet-grip"></div>
+    <div class="sheet-date" id="sheet-date">—</div>
+    <div class="sheet-sub" id="sheet-sub">Log the day's result</div>
+    <div class="pnl-sign">
+      <button class="sign-btn win" id="sgn-win" onclick="setSign(1)">Profit</button>
+      <button class="sign-btn loss" id="sgn-loss" onclick="setSign(-1)">Loss</button>
+      <button class="sign-btn flat" id="sgn-flat" onclick="setSign(0)">Break even</button>
+    </div>
+    <div class="pnl-input-wrap">
+      <span class="input-dollar">$</span>
+      <input type="number" class="big-input" id="sheet-input" placeholder="0.00" step="0.01" inputmode="decimal"/>
+    </div>
+    <div class="sheet-err" id="sheet-err"></div>
+    <div class="sheet-actions">
+      <button class="btn dng" id="sheet-del" onclick="deleteDay()">Clear</button>
+      <button class="btn acc" onclick="saveDay()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ Import modal ════ -->
+<div id="imodal">
+  <div class="mbox">
+    <div class="mtitle">Import backup</div>
+    <div class="msub">Paste your exported backup. This replaces all current data.</div>
+    <textarea id="import-text" placeholder="Paste backup JSON…"></textarea>
+    <div class="sheet-err" id="import-err"></div>
+    <div style="display:flex;gap:9px;margin-top:10px">
+      <button class="btn" onclick="closeImport()">Cancel</button>
+      <button class="btn acc" onclick="importData()">Restore</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ Tab bar ════ -->
+<div id="tabbar">
+  <button class="tab active" onclick="setTab('dashboard')" id="tb-dashboard">
+    <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3zM13 21h8V3h-8zM3 21h8v-6H3z"/></svg>
+    Overview
+  </button>
+  <button class="tab" onclick="setTab('log')" id="tb-log">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+    Calendar
+  </button>
+  <button class="tab" onclick="setTab('analytics')" id="tb-analytics">
+    <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-5 3 3 5-7"/></svg>
+    Analytics
+  </button>
+  <button class="tab" onclick="setTab('settings')" id="tb-settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Settings
+  </button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ════════════════════════════════════════════
+   DATA MODEL
+   entries: { "YYYY-MM-DD": pnlNumber }   ← trading days, +/- dollars
+   withdrawals: { "YYYY-MM-DD": amount }  ← optional, future use
+   settings: { base: number }
+   Single source of truth. Balance is DERIVED, never stored.
+   ════════════════════════════════════════════ */
+
+const KEY="vault_v2";
+const MO=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const MOFULL=["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+let state={ base:5000, entries:{}, withdrawals:{}, lastExport:null };
+let chartMain=null;
+let currentPeriod="month";
+let calDate=new Date();      // which month the calendar shows
+let sheetKey=null;           // date being edited
+let sheetSign=1;             // 1 / -1 / 0
+
+/* ── Persistence ── */
+function load(){
+  try{
+    const r=localStorage.getItem(KEY);
+    if(r){ state=Object.assign(state,JSON.parse(r)); }
+  }catch(e){}
+}
+function save(){ try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){} }
+
+/* ── Helpers ── */
+function fmt(n,d=2){return Number(n).toLocaleString("en-US",{minimumFractionDigits:d,maximumFractionDigits:d})}
+function sign(n){return n>=0?"+":"−"}
+function abs(n){return Math.abs(n)}
+function gcls(n){return n>=0?"g":"r"}
+function gcol(n){return n>=0?"var(--g)":"var(--r)"}
+function el(id){return document.getElementById(id)}
+function pad(n){return String(n).padStart(2,"0")}
+function dkey(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())}
+function parseKey(k){const[y,m,d]=k.split("-").map(Number);return new Date(y,m-1,d)}
+function isWeekend(d){const g=d.getDay();return g===0||g===6}
+function todayKey(){return dkey(new Date())}
+
+/* sorted [ [key,pnl], ... ] ascending */
+function sortedEntries(){
+  return Object.entries(state.entries).sort((a,b)=>a[0].localeCompare(b[0]));
+}
+
+/* ── Equity series: derived balance after each trading day ── */
+function equitySeries(){
+  const arr=sortedEntries();
+  let bal=state.base;
+  const pts=[{key:null,bal:state.base}];
+  arr.forEach(([k,p])=>{ bal+=p; pts.push({key:k,bal:+bal.toFixed(2)}); });
+  return pts;
+}
+
+/* ── Metrics over a set of [key,pnl] pairs, given a starting balance ── */
+function metrics(pairs, startBal){
+  if(pairs.length===0) return null;
+  let bal=startBal, peak=startBal, dd=0, ddKey=null;
+  let gWin=0,gLoss=0,win=0,loss=0,flat=0;
+  let best={k:null,v:-Infinity}, worst={k:null,v:Infinity};
+  let net=0;
+  pairs.forEach(([k,p])=>{
+    net+=p; bal+=p;
+    if(p>0){gWin+=p;win++;} else if(p<0){gLoss+=Math.abs(p);loss++;} else flat++;
+    if(p>best.v){best={k,v:p};}
+    if(p<worst.v){worst={k,v:p};}
+    if(bal>peak)peak=bal;
+    const d=peak>0?((peak-bal)/peak)*100:0;
+    if(d>dd){dd=d;ddKey=k;}
+  });
+  const days=pairs.length;
+  const avg=net/days;
+  const roi=startBal>0?(net/startBal)*100:0;
+  const wr=(win+loss)>0?(win/(win+loss))*100:null;
+  const pf=gLoss>0?(gWin/gLoss):(gWin>0?Infinity:0);
+  return {net,roi,avg,days,dd,ddKey,best,worst,win,loss,flat,wr,pf,gWin,gLoss,endBal:bal};
+}
+
+/* ── Color intensity for a calendar cell, scaled to month's biggest move ── */
+function cellTint(p, maxAbs){
+  if(p===0) return "transparent";
+  const t=maxAbs>0?Math.min(1,Math.abs(p)/maxAbs):0.5;
+  const a=Math.round((0.10+0.30*t)*255).toString(16).padStart(2,"0");
+  return (p>0?"#3fb950":"#f0573d")+a;
+}
+
+/* ════════════ TAB NAV ════════════ */
+function setTab(name){
+  ["dashboard","log","analytics","settings"].forEach(t=>{
+    el("tab-"+t).classList.toggle("hidden",t!==name);
+    el("tb-"+t).classList.toggle("active",t===name);
+  });
+  if(name==="dashboard")renderDashboard();
+  if(name==="log")renderCalendar();
+  if(name==="analytics")renderAnalytics();
+  if(name==="settings")renderSettings();
+  window.scrollTo(0,0);
+}
+
+/* ════════════ DASHBOARD ════════════ */
+function renderDashboard(){
+  const pairs=sortedEntries();
+  const m=metrics(pairs,state.base);
+  el("dash-foot").textContent="Starting capital $"+fmt(state.base,0);
+
+  if(!m){
+    el("h-pnl").textContent="$0.00";
+    el("h-bal").textContent="$"+fmt(state.base);
+    ["h-roi","h-wr","k-avg","k-days","k-dd","k-pf","k-best","k-worst","k-streak","k-wd"].forEach(i=>el(i).textContent="—");
+    renderMainChart();
+    return;
+  }
+
+  const hp=el("h-pnl");
+  hp.textContent=sign(m.net)+"$"+fmt(abs(m.net));
+  hp.style.color=gcol(m.net);
+  el("hero-glow").style.background=m.net>=0?"var(--g)":"var(--r)";
+
+  el("h-roi").textContent=sign(m.roi)+fmt(m.roi)+"%";
+  el("h-roi").style.color=gcol(m.roi);
+  el("h-bal").textContent="$"+fmt(m.endBal);
+  el("h-wr").textContent=m.wr!==null?fmt(m.wr,0)+"%":"—";
+
+  const a=el("k-avg");a.textContent=sign(m.avg)+"$"+fmt(abs(m.avg));a.className="kv sm "+gcls(m.avg);
+  el("k-days").textContent=m.days;
+  const dd=el("k-dd");dd.textContent="−"+fmt(m.dd)+"%";dd.className="kv sm"+(m.dd>10?" r":"");
+  el("k-dd-d").textContent=m.ddKey?"trough "+fdShort(m.ddKey):"";
+  el("k-pf").textContent=m.pf===Infinity?"∞":fmt(m.pf,2);
+
+  el("k-best").textContent="+$"+fmt(m.best.v);
+  el("k-best-d").textContent=fdShort(m.best.k);
+  el("k-worst").textContent=sign(m.worst.v)+"$"+fmt(abs(m.worst.v));
+  el("k-worst-d").textContent=fdShort(m.worst.k);
+
+  el("k-streak").textContent=streakText(pairs);
+  const tw=totalWithdrawn();
+  el("k-wd").textContent=tw>0?"$"+fmt(tw):"—";
+
+  renderMainChart();
+}
+
+function fdShort(k){if(!k)return"";const d=parseKey(k);return MO[d.getMonth()]+" "+d.getDate();}
+
+function streakText(pairs){
+  if(pairs.length===0)return"—";
+  let streak=0, dir=null;
+  for(let i=pairs.length-1;i>=0;i--){
+    const p=pairs[i][1];
+    if(p===0)break;
+    const d=p>0?1:-1;
+    if(dir===null){dir=d;streak=1;}
+    else if(d===dir)streak++;
+    else break;
+  }
+  if(dir===null)return"—";
+  return (dir>0?"W":"L")+streak+(dir>0?" green":" red");
+}
+
+function totalWithdrawn(){
+  return Object.values(state.withdrawals||{}).reduce((s,v)=>s+v,0);
+}
+
+function renderMainChart(){
+  try{
+    const series=equitySeries();
+    const labels=series.map(p=>p.key?fdShort(p.key):"Start");
+    const data=series.map(p=>p.bal);
+    const last=data[data.length-1];
+    const col=last>=state.base?"#3fb950":"#f0573d";
+    if(chartMain){chartMain.destroy();chartMain=null;}
+    const ctx=el("chart-main").getContext("2d");
+    const g=ctx.createLinearGradient(0,0,0,170);
+    g.addColorStop(0,col+"40");g.addColorStop(1,col+"00");
+    chartMain=new Chart(ctx,{
+      type:"line",
+      data:{labels,datasets:[{data,borderColor:col,borderWidth:2,backgroundColor:g,fill:true,tension:0.25,pointBackgroundColor:col,pointRadius:0,pointHoverRadius:4}]},
+      options:{
+        responsive:true,maintainAspectRatio:false,
+        interaction:{intersect:false,mode:"index"},
+        plugins:{legend:{display:false},tooltip:{
+          backgroundColor:"#16191f",borderColor:"#2a3038",borderWidth:1,padding:10,
+          titleColor:"#7d8694",bodyColor:"#e6e9ee",
+          titleFont:{family:"Azeret Mono",size:10},bodyFont:{family:"Azeret Mono",size:12},
+          callbacks:{label:c=>{const dl=c.raw-state.base;return "$"+fmt(c.raw)+"  ("+sign(dl)+"$"+fmt(abs(dl))+")";}}
+        }},
+        scales:{
+          x:{ticks:{color:"#454d59",font:{family:"Azeret Mono",size:9},maxRotation:0,autoSkip:true,maxTicksLimit:6},grid:{display:false},border:{display:false}},
+          y:{ticks:{color:"#454d59",font:{family:"Azeret Mono",size:9},callback:v=>"$"+(v/1000).toFixed(1)+"k"},grid:{color:"#16191f"},border:{display:false}}
+        },
+        animation:{duration:350}
+      },
+      plugins:[{id:"baseline",afterDraw(ch){
+        const{ctx:cx,scales:{y,x}}=ch;
+        if(state.base<y.min||state.base>y.max)return;
+        const yp=y.getPixelForValue(state.base);
+        cx.save();cx.setLineDash([4,4]);cx.strokeStyle="#2a3038";cx.lineWidth=1;
+        cx.beginPath();cx.moveTo(x.left,yp);cx.lineTo(x.right,yp);cx.stroke();cx.restore();
+      }}]
+    });
+  }catch(e){console.warn("chart",e);}
+}
+
+/* ════════════ CALENDAR / LOG ════════════ */
+function calStep(n){ calDate.setMonth(calDate.getMonth()+n); renderCalendar(); }
+function calToday(){ calDate=new Date(); renderCalendar(); }
+
+function renderCalendar(){
+  const y=calDate.getFullYear(), mo=calDate.getMonth();
+  el("cal-title").textContent=MOFULL[mo]+" "+y;
+
+  // Gather this month's trading-day entries
+  const monthPairs=sortedEntries().filter(([k])=>{const d=parseKey(k);return d.getFullYear()===y&&d.getMonth()===mo;});
+  const m=metrics(monthPairs,0);
+  const maxAbs=monthPairs.reduce((mx,[,p])=>Math.max(mx,Math.abs(p)),0);
+
+  // Month summary
+  if(monthPairs.length){
+    const cp=el("cal-pnl");cp.textContent=sign(m.net)+"$"+fmt(abs(m.net));cp.className="kv sm "+gcls(m.net);
+    el("cal-days").textContent=m.days;
+    el("cal-wr").textContent=m.wr!==null?fmt(m.wr,0)+"%":"—";
+  }else{
+    el("cal-pnl").textContent="—";el("cal-pnl").className="kv sm";
+    el("cal-days").textContent="0";el("cal-wr").textContent="—";
+  }
+
+  // Build weekday-only grid (Mon-Fri columns)
+  const grid=el("cal-grid");grid.innerHTML="";
+  const first=new Date(y,mo,1);
+  // JS getDay: 0=Sun..6=Sat. We want Mon=0..Fri=4 columns; skip Sat/Sun.
+  let firstCol=first.getDay()-1; // Mon->0
+  if(firstCol<0)firstCol=4;      // Sunday => treat as needing 4 leading? Actually Sun has no column.
+  // Compute leading blanks for the first weekday of the month
+  const firstDow=first.getDay();
+  let lead = (firstDow===0)?0:(firstDow===6)?0:(firstDow-1);
+  // If the 1st is Sat/Sun, the first visible cell is the next Monday with 0 lead.
+  for(let i=0;i<lead;i++){const c=document.createElement("div");c.className="cell empty";grid.appendChild(c);}
+
+  const daysInMonth=new Date(y,mo+1,0).getDate();
+  const tk=todayKey();
+  for(let day=1;day<=daysInMonth;day++){
+    const d=new Date(y,mo,day);
+    if(isWeekend(d))continue;
+    const key=dkey(d);
+    const has=Object.prototype.hasOwnProperty.call(state.entries,key);
+    const pnl=has?state.entries[key]:null;
+    const future=d>new Date(new Date().setHours(23,59,59,999));
+
+    const cell=document.createElement("div");
+    let cls="cell";
+    if(future)cls+=" future";
+    if(key===tk)cls+=" today";
+    if(has&&pnl>0)cls+=" win";
+    if(has&&pnl<0)cls+=" loss";
+    cell.className=cls;
+    if(!future)cell.onclick=()=>openSheet(key);
+
+    let inner="";
+    if(has&&pnl!==0){
+      inner+=`<div class="cell-fill" style="background:${cellTint(pnl,maxAbs)}"></div>`;
+    }
+    inner+=`<div class="cell-day">${day}</div>`;
+    if(has){
+      const txt = pnl===0 ? "BE" : (sign(pnl)+"$"+fmtShort(abs(pnl)));
+      inner+=`<div class="cell-pnl">${txt}</div>`;
+    }else if(!future){
+      inner+=`<div class="cell-pnl empty-day">+</div>`;
+    }else{
+      inner+=`<div></div>`;
+    }
+    cell.innerHTML=inner;
+    grid.appendChild(cell);
+  }
+}
+
+/* compact money for tight cells: 1.36K style above 1000 */
+function fmtShort(n){
+  if(n>=1000) return (n/1000).toFixed(n>=10000?0:2).replace(/\.00$/,"")+"K";
+  return fmt(n,n%1===0?0:0);
+}
+
+/* ── Day editor sheet ── */
+function openSheet(key){
+  sheetKey=key;
+  const d=parseKey(key);
+  el("sheet-date").textContent=d.toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"});
+  el("sheet-err").textContent="";
+  const has=Object.prototype.hasOwnProperty.call(state.entries,key);
+  if(has){
+    const p=state.entries[key];
+    setSign(p>0?1:p<0?-1:0);
+    el("sheet-input").value=p===0?"":abs(p);
+    el("sheet-sub").textContent="Edit this day's result";
+    el("sheet-del").style.display="";
+  }else{
+    setSign(1);
+    el("sheet-input").value="";
+    el("sheet-sub").textContent="Log the day's result";
+    el("sheet-del").style.display="none";
+  }
+  el("sheet").classList.add("open");
+  setTimeout(()=>el("sheet-input").focus(),250);
+}
+function closeSheet(){el("sheet").classList.remove("open");sheetKey=null;}
+function setSign(s){
+  sheetSign=s;
+  el("sgn-win").classList.toggle("active",s===1);
+  el("sgn-loss").classList.toggle("active",s===-1);
+  el("sgn-flat").classList.toggle("active",s===0);
+  const inp=el("sheet-input");
+  if(s===0){inp.value="";inp.disabled=true;inp.style.opacity="0.4";}
+  else{inp.disabled=false;inp.style.opacity="1";}
+}
+function saveDay(){
+  if(!sheetKey)return;
+  const err=el("sheet-err");err.textContent="";
+  let val;
+  if(sheetSign===0){ val=0; }
+  else{
+    const raw=parseFloat(el("sheet-input").value);
+    if(isNaN(raw)||raw<0){err.textContent="Enter a dollar amount.";return;}
+    if(raw===0){err.textContent="Use Break even for $0, or enter an amount.";return;}
+    val=+(raw*sheetSign).toFixed(2);
+  }
+  state.entries[sheetKey]=val;
+  save();closeSheet();renderCalendar();
+  toast(val===0?"Break-even day saved":sign(val)+"$"+fmt(abs(val))+" saved");
+}
+function deleteDay(){
+  if(!sheetKey)return;
+  delete state.entries[sheetKey];
+  save();closeSheet();renderCalendar();toast("Day cleared");
+}
+
+/* ════════════ ANALYTICS ════════════ */
+function setPeriod(p){
+  currentPeriod=p;
+  ["month","quarter","year"].forEach(x=>el("pl-"+x).classList.toggle("active",x===p));
+  renderAnalytics();
+}
+
+function periodKey(k,p){
+  const d=parseKey(k);
+  if(p==="month")return d.getFullYear()+"-"+pad(d.getMonth()+1);
+  if(p==="quarter")return d.getFullYear()+"-Q"+(Math.floor(d.getMonth()/3)+1);
+  return ""+d.getFullYear();
+}
+function periodLabel(key,p){
+  if(p==="month"){const[y,m]=key.split("-");return MOFULL[+m-1]+" "+y;}
+  if(p==="quarter"){const[y,q]=key.split("-");return q+" "+y;}
+  return key;
+}
+
+function renderAnalytics(){
+  const c=el("analytics-content");
+  const pairs=sortedEntries();
+  if(pairs.length===0){c.innerHTML='<div class="empty-state">No trading days logged yet.<br>Head to the Calendar to start.</div>';return;}
+
+  // group
+  const groups={};
+  pairs.forEach(([k,p])=>{const g=periodKey(k,currentPeriod);(groups[g]=groups[g]||[]).push([k,p]);});
+  const keys=Object.keys(groups).sort().reverse();
+
+  // running start balance per period (chronological), so ROI compounds correctly
+  const chrono=keys.slice().reverse();
+  const startBalMap={};
+  let run=state.base;
+  chrono.forEach(key=>{
+    startBalMap[key]=run;
+    const net=groups[key].reduce((s,[,p])=>s+p,0);
+    run+=net;
+  });
+
+  let html="";
+  keys.forEach(key=>{
+    const grp=groups[key].slice().sort((a,b)=>a[0].localeCompare(b[0]));
+    const sb=startBalMap[key];
+    const m=metrics(grp,sb);
+    if(!m)return;
+    const range=fdShort(grp[0][0])+" – "+fdShort(grp[grp.length-1][0]);
+    html+=buildPCard(periodLabel(key,currentPeriod),range,m,grp);
+  });
+  c.innerHTML=html;
+  setTimeout(renderMiniCharts,60);
+}
+
+function buildPCard(title,range,m,grp){
+  const col=gcol(m.net);
+  // mini equity within the period
+  let bal=0;const vals=[0];grp.forEach(([,p])=>{bal+=p;vals.push(+bal.toFixed(2));});
+  const enc=encodeURIComponent(JSON.stringify(vals));
+  return `<div class="pcard">
+    <div class="ptop">
+      <div><div class="pdate">${title}</div><div class="psub">${range}</div></div>
+      <div>
+        <div class="ppnl" style="color:${col}">${sign(m.net)}$${fmt(abs(m.net))}</div>
+        <div class="proi" style="color:${col}">${sign(m.roi)}${fmt(m.roi)}%</div>
+      </div>
+    </div>
+    <div class="sgrid">
+      <div class="sitem"><div class="slbl">Win days</div><div class="sval">${m.wr!==null?fmt(m.wr,0)+"%":"—"}</div></div>
+      <div class="sitem"><div class="slbl">Days</div><div class="sval">${m.days}</div></div>
+      <div class="sitem"><div class="slbl">Avg / day</div><div class="sval" style="color:${gcol(m.avg)}">${sign(m.avg)}$${fmt(abs(m.avg))}</div></div>
+      <div class="sitem"><div class="slbl">Profit factor</div><div class="sval">${m.pf===Infinity?"∞":fmt(m.pf,2)}</div></div>
+      <div class="sitem"><div class="slbl">Best</div><div class="sval" style="color:var(--g)">+$${fmt(m.best.v)}</div></div>
+      <div class="sitem"><div class="slbl">Worst</div><div class="sval" style="color:var(--r)">${sign(m.worst.v)}$${fmt(abs(m.worst.v))}</div></div>
+    </div>
+    <div class="mini-wrap"><canvas data-minivals="${enc}"></canvas></div>
+  </div>`;
+}
+
+function renderMiniCharts(){
+  try{
+    document.querySelectorAll("canvas[data-minivals]:not([data-rendered])").forEach(cvs=>{
+      cvs.setAttribute("data-rendered","1");
+      const vals=JSON.parse(decodeURIComponent(cvs.getAttribute("data-minivals")));
+      if(vals.length<2)return;
+      const col=vals[vals.length-1]>=0?"#3fb950":"#f0573d";
+      const ctx=cvs.getContext("2d");
+      const g=ctx.createLinearGradient(0,0,0,64);
+      g.addColorStop(0,col+"40");g.addColorStop(1,col+"00");
+      new Chart(ctx,{type:"line",data:{labels:vals.map((_,i)=>i),datasets:[{data:vals,borderColor:col,borderWidth:1.5,backgroundColor:g,fill:true,tension:0.35,pointRadius:0}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{enabled:false}},scales:{x:{display:false},y:{display:false}},animation:{duration:0}}});
+    });
+  }catch(e){}
+}
+
+/* ════════════ SETTINGS ════════════ */
+function renderSettings(){
+  el("set-base").value=state.base;
+  el("backup-info").textContent=state.lastExport?"Last export "+new Date(state.lastExport).toLocaleString():"";
+}
+function setBase(){
+  const v=parseFloat(el("set-base").value);
+  if(isNaN(v)||v<=0){toast("Enter a valid amount");el("set-base").value=state.base;return;}
+  state.base=v;save();toast("Starting capital updated");
+}
+function exportData(){
+  const data=JSON.stringify(state,null,2);
+  state.lastExport=Date.now();save();
+  const date=new Date().toISOString().split("T")[0];
+  try{
+    const blob=new Blob([data],{type:"application/json"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.download="vault-"+date+".json";
+    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
+    toast("Backup exported");
+  }catch(e){
+    navigator.clipboard?.writeText(data).then(()=>toast("Copied to clipboard")).catch(()=>prompt("Copy:",data));
+  }
+  renderSettings();
+}
+function openImport(){el("imodal").classList.add("open");}
+function closeImport(){el("imodal").classList.remove("open");el("import-text").value="";el("import-err").textContent="";}
+function importData(){
+  const txt=el("import-text").value.trim();
+  const err=el("import-err");err.textContent="";
+  if(!txt){err.textContent="Paste your backup first.";return;}
+  try{
+    const p=JSON.parse(txt);
+    if(typeof p!=="object"||!p.entries)throw 0;
+    state=Object.assign({base:5000,entries:{},withdrawals:{}},p);
+    save();closeImport();
+    toast("Restored "+Object.keys(state.entries).length+" days");
+    setTab("dashboard");
+  }catch(e){err.textContent="Invalid backup. Paste the full exported JSON.";}
+}
+function wipeData(){
+  if(!confirm("Erase all logged days and reset? This cannot be undone."))return;
+  localStorage.removeItem(KEY);
+  state={base:5000,entries:{},withdrawals:{},lastExport:null};
+  save();toast("All data erased");setTab("dashboard");
+}
+
+function toast(msg){const t=el("toast");t.textContent=msg;t.classList.add("show");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("show"),2000);}
+
+/* Enter key saves in sheet */
+el("sheet-input").addEventListener("keydown",e=>{if(e.key==="Enter")saveDay();});
+
+/* ════════════ INIT ════════════ */
+load();
+renderDashboard();
+</script>
+</body>
+</html>
